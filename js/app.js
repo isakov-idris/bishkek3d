@@ -12,6 +12,8 @@ import { Player, tourTrack, routeTrack, voice } from './player.js';
 import { SearchIndex, QUICK, iconFor } from './search.js';
 import { setTerrain, buildTerrain, elev, toLatLon } from './terrain.js';
 import { Walker } from './walk.js';
+import { Atmosphere, sunEvents } from './atmosphere.js';
+import { Traffic, buildClouds, lifeShared } from './life.js';
 
 const $ = (s) => document.querySelector(s);
 const isMobile = matchMedia('(pointer: coarse)').matches;
@@ -22,7 +24,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuff
 renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.75 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.toneMapping = THREE.NeutralToneMapping; // сохраняет насыщенность цветов renderer.toneMappingExposure = 1.05;
 $('#stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 1, 90000);
@@ -33,18 +35,11 @@ controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 40; controls.maxDistance = 11000;
 controls.screenSpacePanning = false; controls.zoomToCursor = true;
 
-const skyU = { top: { value: new THREE.Color() }, bottom: { value: new THREE.Color() } };
-scene.add(new THREE.Mesh(new THREE.SphereGeometry(80000, 32, 16), new THREE.ShaderMaterial({
-  side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
-  vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying vec3 vP; void main(){ float h = clamp(normalize(vP).y * 2.5, 0.0, 1.0); gl_FragColor = vec4(mix(bottom, top, pow(h, 0.7)), 1.0); }',
-})));
-scene.fog = new THREE.Fog(0xdfe8ef, 6000, 70000);
-const hemi = new THREE.HemisphereLight(0xdfeaff, 0xcfc6b0, 1.1); scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
-sun.castShadow = true; sun.shadow.mapSize.set(isMobile ? 2048 : 4096, isMobile ? 2048 : 4096);
-sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6; scene.add(sun, sun.target);
-const SUN_DIR = new THREE.Vector3(-0.55, 0.7, 0.45).normalize();
+// Небо, солнце по реальному времени Бишкека, дымка, отражения (atmosphere.js)
+const atmo = new Atmosphere(scene, renderer);
+const sun = atmo.sun;
+sun.shadow.mapSize.set(isMobile ? 2048 : 4096, isMobile ? 2048 : 4096);
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
 
 // ========== 2. Загрузка данных и постройка города ==========
 $('#loader-text').textContent = 'Загружаем данные города…';
@@ -57,6 +52,8 @@ const terrain = buildTerrain(scene);
 const world = buildCity(scene, D);
 const router = new Router(D);
 const walker = new Walker(camera, renderer.domElement, world.buildings);
+const traffic = new Traffic(router, isMobile ? 380 : 900); scene.add(traffic.group);   // машины
+const clouds = buildClouds(); scene.add(clouds.group);                                // облака
 walker.bindStick($('#stick'), $('#knob'));
 const LM = LANDMARKS.map(l => ({ ...l, ...toXZ(l.lat, l.lon) }));
 const index = new SearchIndex(S.items, LM);
@@ -64,27 +61,29 @@ console.log(`[app] город построен за ${Math.round(performance.now
 $('#stats').textContent = `${world.stats.houses.toLocaleString('ru')} зданий, ${index.items.filter(i => i.k === 1).length.toLocaleString('ru')} мест, ${world.stats.trees.toLocaleString('ru')} деревьев`;
 voice.init();
 
-function updateSun() {
-  const d = camera.position.distanceTo(controls.target), half = THREE.MathUtils.clamp(d * 0.75, 250, 3200), c = sun.shadow.camera;
-  if (Math.abs(c.right - half) > half * 0.15) { c.left = -half; c.right = half; c.top = half; c.bottom = -half; c.near = 10; c.far = 9000; c.updateProjectionMatrix(); }
-  sun.target.position.copy(controls.target); sun.position.copy(controls.target).addScaledVector(SUN_DIR, 4000);
-}
+function updateSun() { atmo.follow(controls.target, camera.position.distanceTo(controls.target)); }
 
-// ========== 3. День и ночь ==========
-const DAY = { skyTop: 0x7fb4e6, skyBot: 0xeaf1f5, fog: 0xe2eaf0, hemiS: 0xdfeaff, hemiG: 0xcfc6b0, hemiI: 1.1, sunC: 0xfff1dc, sunI: 2.4, exp: 1.05 };
-const NIGHT = { skyTop: 0x050a1a, skyBot: 0x1c2846, fog: 0x141c30, hemiS: 0x3a4f80, hemiG: 0x1a1a22, hemiI: 0.35, sunC: 0x9fb4ff, sunI: 0.25, exp: 1.25 };
-let night = 0, nightTarget = 0;
-const lc = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t), lf = THREE.MathUtils.lerp;
-function applyTime(t) {
-  skyU.top.value.copy(lc(DAY.skyTop, NIGHT.skyTop, t)); skyU.bottom.value.copy(lc(DAY.skyBot, NIGHT.skyBot, t));
-  scene.fog.color.copy(lc(DAY.fog, NIGHT.fog, t));
-  hemi.color.copy(lc(DAY.hemiS, NIGHT.hemiS, t)); hemi.groundColor.copy(lc(DAY.hemiG, NIGHT.hemiG, t)); hemi.intensity = lf(DAY.hemiI, NIGHT.hemiI, t);
-  sun.color.copy(lc(DAY.sunC, NIGHT.sunC, t)); sun.intensity = lf(DAY.sunI, NIGHT.sunI, t);
-  renderer.toneMappingExposure = lf(DAY.exp, NIGHT.exp, t);
-  shared.uNight.value = t; world.lampsPts.material.opacity = t;
-  document.body.classList.toggle('is-night', t > 0.5);
+// ========== 3. Время суток (реальное солнце) ==========
+const lf = THREE.MathUtils.lerp;
+let night = 0, lastAtmo = 0, lastSt = { golden: 0 };
+function applyTime(force = false) {
+  const st = atmo.update(force); night = st.night; lastSt = st;
+  shared.uNight.value = night; world.lampsPts.material.opacity = night * 0.75;
+  document.body.classList.toggle('is-night', night > 0.5);
+  updateClock(st);
 }
-applyTime(0);
+// Живая строка: время в Бишкеке и что с солнцем
+function updateClock(st) {
+  const el = document.getElementById('clock'); if (!el) return;
+  const now = atmo.now(), fmt = (d) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bishkek' });
+  const ev = sunEvents(now), mins = (d) => Math.round((d - now) / 60000);
+  const rel = (m) => m < 60 ? `${m} мин` : (m % 60 && m < 180 ? `${Math.floor(m / 60)} ч ${m % 60} мин` : `${Math.round(m / 60)} ч`);
+  let txt;
+  if (ev.set && now < ev.set && st.el > -0.8) txt = `закат через ${rel(mins(ev.set))}`;
+  else if (ev.rise && now < ev.rise) txt = `рассвет через ${rel(mins(ev.rise))}`;
+  else txt = st.el > 0 ? 'день' : 'ночь';
+  el.innerHTML = `<b${atmo.mode === 'live' ? '' : ' style="color:var(--sun)"'}>${fmt(now)}</b><span>${txt}</span>`;
+}
 
 // ========== 4. Подписи над 3D ==========
 const labels = [];
@@ -269,6 +268,7 @@ function exitWalk() {
   flyTo(tgt, inside ? 260 : 220, 1.0, 1500);
 }
 $('#walk-exit').onclick = exitWalk;
+$('#btn-walk').onclick = () => { closeCard(); const t = controls.target; startWalk({ x: t.x + 1, z: t.z + 1 }); };
 $('#walk-window').onclick = () => { if (walker.mode === 'interior') { walker.yaw = Math.atan2(-walker.room.nx, -walker.room.nz); walker.pitch = -0.08; } };
 $('#walk-glb').onclick = () => $('#glb-file').click();
 $('#glb-file').onchange = async (e) => {
@@ -385,7 +385,7 @@ const player = new Player(camera, controls, {
   onTime(t, d) { $('#ptime').textContent = `${fmtT(t)} / ${fmtT(d)}`; const k = (t / d * 100) + '%'; $('#scrub .fill').style.width = k; $('#scrub .knob').style.left = k; },
   onChapter(c, i) {
     const vt = $('#vtitle'); vt.style.opacity = 0;
-    setTimeout(() => { $('#vk').textContent = videoKind + (player.track.kind === 'tour' ? ` · ${i + 1} из ${player.track.chapters.length}` : ''); $('#vh').textContent = c.title; $('#vp').textContent = c.sub || ''; vt.style.opacity = 1; }, 250);
+    setTimeout(() => { $('#vk').textContent = videoKind + (player.track.kind === 'tour' ? `, ${i + 1} из ${player.track.chapters.length}` : ''); $('#vh').textContent = c.title; $('#vp').textContent = c.sub || ''; vt.style.opacity = 1; }, 250);
   },
   onEnd() { $('#vh').textContent = 'Конец'; $('#vp').textContent = 'Нажми ▶, чтобы посмотреть ещё раз, или ✕, чтобы вернуться к карте.'; },
 });
@@ -446,10 +446,14 @@ function closeSheets() { $('#places-sheet').classList.remove('open'); $('#layers
 const HOME = () => flyTo(new THREE.Vector3(0, 0, 700), 2900, 1.27, 1800);
 $('#btn-home').onclick = () => { closeCard(); HOME(); };
 // ---------- Слои ----------
-const layers = { base: 'schema', time: 'day', trees: 'on', shadows: isMobile ? 'on' : 'on' };
+const layers = { base: 'sat', time: 'live', trees: 'on', shadows: isMobile ? 'on' : 'on' };
 function applyLayers() {
-  terrain.setMode(layers.base); world.flatGroup.visible = layers.base === 'schema';
-  nightTarget = layers.time === 'night' ? 1 : 0;
+  terrain.setMode(layers.base);
+  // на спутнике оставляем асфальт, площади и воду; газоны и тропинки видны на снимке
+  for (const m of world.flatGroup.children) { const k = m.userData.kind || ''; m.visible = layers.base === 'schema' || /^road[1-6]$|^area1$|^area6$/.test(k); }
+  if (layers.time === 'live') atmo.mode = 'live';
+  else { atmo.mode = 'manual'; const ev = sunEvents(new Date()); const setH = ev.set ? (ev.set.getUTCHours() + 6 + ev.set.getUTCMinutes() / 60) % 24 : 18; atmo.hours = { day: 13, sunset: setH - 0.35, night: 23 }[layers.time]; }
+  applyTime(true);
   world.treesMesh.visible = layers.trees === 'on';
   renderer.shadowMap.enabled = layers.shadows === 'on'; sun.castShadow = layers.shadows === 'on';
   scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
@@ -481,7 +485,9 @@ function loop(now) {
   if (camAnim) stepCamAnim(now);
   else if (walker.active) walker.update(dt);
   else if (!player.update(dt)) { stepFly(now); if (!fly) controls.target.y += (elev(controls.target.x, controls.target.z) - controls.target.y) * 0.2; controls.update(); }
-  if (Math.abs(night - nightTarget) > 0.001) { night += (nightTarget - night) * 0.05; applyTime(night); }
+  if (now - lastAtmo > 1000) { lastAtmo = now; applyTime(); } // солнце движется в реальном времени
+  lifeShared.uTime.value = now / 1000;
+  traffic.update(dt, night); clouds.update(dt, night, lastSt.golden || 0);
   if (flagObj) { const p = flagObj.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const x = flagBase[i * 3] + 7.5; p.array[i * 3 + 2] = Math.sin(x * 0.55 - now * 0.004) * 0.12 * x; } p.needsUpdate = true; }
   if (wheel) wheel.rotation.z = now * 0.00012;
   if (flame) flame.scale.set(1, 1 + Math.sin(now * 0.02) * 0.15, 1);
@@ -492,4 +498,4 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 setTimeout(() => { $('#loader').classList.add('hide'); flyTo(new THREE.Vector3(0, 0, 700), 2900, 1.27, 3400); }, 250);
-window.__bishkek = { camera, controls, walker, startWalk, enterBuilding, exitWalk, world, openLandmark, flyTo, router, index, route, setRoutePoint, startVideo, tour, player, setNight: (v) => { nightTarget = v; night = v; applyTime(v); } };
+window.__bishkek = { camera, controls, walker, startWalk, enterBuilding, exitWalk, world, openLandmark, flyTo, router, index, route, setRoutePoint, startVideo, tour, player, atmo, setTime: (h) => { atmo.mode = 'manual'; atmo.hours = h; applyTime(true); } };

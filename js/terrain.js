@@ -75,8 +75,8 @@ export function buildTerrain(scene) {
   const mats = {
     citySchema: new THREE.MeshStandardMaterial({ color: 0xe6dfcf, roughness: 1 }),
     regionSchema: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }),
-    citySat: new THREE.MeshStandardMaterial({ map: tex(T.satCity.file), roughness: 1 }),
-    regionSat: new THREE.MeshStandardMaterial({ map: tex(T.satRegion.file), roughness: 1 }),
+    citySat: new THREE.MeshStandardMaterial({ map: tex(T.satCity.file), roughness: 1, color: new THREE.Color(1.45, 1.42, 1.35) }),
+    regionSat: new THREE.MeshStandardMaterial({ map: tex(T.satRegion.file), roughness: 1, color: new THREE.Color(1.35, 1.33, 1.28) }),
   };
   const city = new THREE.Mesh(cityGeo, mats.citySchema); city.receiveShadow = true; city.name = 'ground';
   const region = new THREE.Mesh(regionGeo, mats.regionSchema); region.receiveShadow = true; region.name = 'ground';
