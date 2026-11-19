@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Бишкек 3D — макет города</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== «Лицо сайта»: всё, что поверх 3D-сцены ===== */
+  :root {
+    --red: #e8112d; --sun: #ffd200; --blue: #1f7ae0; --green: #18a957; --ink: #1d2128; --muted: #6b7280;
+    --glass: rgba(255,255,255,.86); --soft: rgba(127,127,127,.1);
+    --top: env(safe-area-inset-top, 0px); --bot: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e2eaf0; font-family: Manrope, system-ui, sans-serif; color: var(--ink); }
+  #stage, #stage canvas { position: fixed; inset: 0; display: block; touch-action: none; }
+  button, input { font: inherit; color: inherit; border: 0; background: none; }
+  button { cursor: pointer; }
+  .glass { background: var(--glass); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border: 1px solid rgba(255,255,255,.6); box-shadow: 0 6px 24px rgba(20,30,50,.13); }
+  body.is-night { --glass: rgba(22,28,44,.84); --ink: #eef1f7; --muted: #9aa3b5; --soft: rgba(255,255,255,.08); }
+  body.is-night .glass { border-color: rgba(255,255,255,.08); }
+  .hidden { display: none !important; }
+
+  /* ---------- Строка поиска ---------- */
+  #top { position: fixed; top: calc(var(--top) + 10px); left: 10px; right: 10px; z-index: 10; max-width: 520px; margin: 0 auto; }
+  #searchbar { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 6px 0 8px; border-radius: 18px; }
+  #logo { width: 34px; height: 34px; flex: none; }
+  #q { flex: 1; min-width: 0; height: 100%; outline: none; font-size: 16px; font-weight: 600; }
+  #q::placeholder { color: var(--muted); font-weight: 500; }
+  .ibtn { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; color: var(--muted); flex: none; }
+  .ibtn:active { background: var(--soft); }
+  #back { display: none; } body.searching #back { display: grid; } body.searching #logo { display: none; }
+  #panel { margin-top: 8px; border-radius: 18px; padding: 10px; max-height: calc(100vh - 160px - var(--top)); overflow: auto; display: none; }
+  body.searching #panel { display: block; }
+  #chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+  #chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; padding: 8px 12px; border-radius: 999px; background: var(--soft); font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+  .chip:active, .chip.on { background: var(--ink); color: #fff; }
+  body.is-night .chip.on { background: #fff; color: #111; }
+  #pickmap { width: 100%; text-align: left; padding: 11px 10px; border-radius: 12px; font-weight: 700; font-size: 14px; color: var(--blue); }
+  .res { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 10px 8px; border-radius: 12px; }
+  .res:active { background: var(--soft); }
+  .res .ic { width: 38px; height: 38px; border-radius: 12px; background: var(--soft); display: grid; place-items: center; font-size: 18px; flex: none; }
+  .res b { display: block; font-size: 14.5px; line-height: 1.25; }
+  .res span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100vw - 110px); }
+  .empty { padding: 14px 8px; color: var(--muted); font-size: 14px; }
+  .hdr { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 10px 8px 4px; }
+
+  /* ---------- Панель маршрута ---------- */
+  #routebox { border-radius: 18px; padding: 8px; display: none; }
+  body.routing #routebox { display: block; } body.routing #searchbar { display: none; }
+  .rrow { display: flex; align-items: center; gap: 8px; }
+  .rdot { width: 12px; height: 12px; border-radius: 50%; flex: none; margin: 0 6px 0 8px; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.1); }
+  .rfield { flex: 1; min-width: 0; text-align: left; height: 42px; padding: 0 12px; border-radius: 12px; background: var(--soft); font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rfield.ph { color: var(--muted); font-weight: 500; }
+  .rrow + .rrow { margin-top: 6px; }
+  #modes { display: flex; gap: 6px; margin-top: 8px; padding-left: 26px; }
+  .mode { padding: 7px 12px; border-radius: 999px; font-weight: 700; font-size: 13px; background: var(--soft); }
+  .mode.on { background: var(--blue); color: #fff; }
+  .mode.on[data-m="walk"] { background: var(--green); }
+
+  /* ---------- Компас ---------- */
+  #compass { position: fixed; top: calc(var(--top) + 72px); right: 10px; width: 46px; height: 46px; border-radius: 50%; z-index: 5; display: grid; place-items: center; }
+  body.routing #compass { top: calc(var(--top) + 150px); }
+  #compass-needle { width: 34px; height: 34px; }
+
+  /* ---------- Нижняя панель ---------- */
+  #bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bot) + 12px); display: flex; gap: 2px; padding: 6px; border-radius: 22px; z-index: 6; }
+  #bar button { width: 62px; height: 54px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; font-weight: 700; color: var(--muted); }
+  #bar button svg { width: 22px; height: 22px; stroke: var(--ink); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #bar button:active { background: var(--soft); }
+  #btn-video svg { fill: var(--red); stroke: var(--red); }
+  #btn-time .moon { display: none; } body.is-night #btn-time .moon { display: block; } body.is-night #btn-time .sunico { display: none; }
+
+  /* ---------- Подписи на карте ---------- */
+  #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
+  .label { position: absolute; left: 0; top: 0; white-space: nowrap; will-change: transform; }
+  .label.lm { pointer-events: auto; cursor: pointer; padding: 5px 10px 5px 8px; font-size: 12.5px; font-weight: 700; border-radius: 999px; background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--ink); box-shadow: 0 3px 12px rgba(20,30,50,.18); display: flex; align-items: center; gap: 6px; margin-top: -6px; }
+  .label.lm::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 3px rgba(232,17,45,.18); }
+  .label.lm::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 2px; height: 6px; background: var(--red); transform: translateX(-50%); }
+  .label.lm.active { background: var(--red); color: #fff; }
+  .label.lm.active::before { background: var(--sun); box-shadow: none; }
+  .label.st { font-size: 10.5px; font-weight: 700; color: #3d4350; letter-spacing: .02em; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff; }
+  body.is-night .label.st { color: #c9d2e6; text-shadow: 0 0 4px #000, 0 0 4px #000; }
+  .label.poi { pointer-events: auto; cursor: pointer; width: 30px; height: 30px; border-radius: 50% 50% 50% 4px; transform-origin: 0 100%; background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.25); display: grid; place-items: center; font-size: 15px; rotate: -45deg; }
+  .label.poi i { rotate: 45deg; font-style: normal; }
+  body.video #labels { opacity: 0; }
+
+  /* ---------- Карточка места ---------- */
+  .sheet { position: fixed; left: 10px; right: 10px; bottom: calc(var(--bot) + 80px); max-width: 460px; margin: 0 auto; padding: 16px; border-radius: 22px; z-index: 7; transform: translateY(16px); opacity: 0; pointer-events: none; transition: .25s ease; }
+  .sheet.open { transform: none; opacity: 1; pointer-events: auto; }
+  #card-tag { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--red); }
+  #card-title { margin: 4px 34px 6px 0; font: 700 19px/1.2 Unbounded, sans-serif; }
+  #card-text { margin: 0; font-size: 14px; line-height: 1.5; color: var(--muted); max-height: 30vh; overflow: auto; }
+  .x { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; font-size: 20px; line-height: 1; color: var(--muted); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .act { padding: 10px 14px; border-radius: 14px; font-weight: 800; font-size: 13.5px; background: var(--soft); }
+  .act.primary { background: var(--blue); color: #fff; }
+  .act.red { background: var(--red); color: #fff; }
+
+  /* ---------- Паспорт здания ---------- */
+  .pp { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--soft); font-size: 12.5px; line-height: 1.35; }
+  .pp .k { color: var(--muted); white-space: nowrap; }
+  .pp .v { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  .pp small { color: var(--muted); font-weight: 500; }
+  .pp a { color: var(--blue); }
+  .st { font-weight: 800; } .st1 { color: var(--green); } .st2 { color: #c58a00; } .st0 { color: var(--red); }
+  #card { max-height: 62vh; overflow: auto; }
+  /* ---------- Слои ---------- */
+  #layers-sheet h2 { margin: 2px 4px 10px; font: 700 15px Unbounded, sans-serif; }
+  .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; border-top: 1px solid var(--soft); font-weight: 700; font-size: 14px; }
+  .lrow small { color: var(--muted); font-weight: 500; }
+  .seg { display: flex; background: var(--soft); border-radius: 12px; padding: 3px; flex: none; }
+  .seg button { padding: 7px 12px; border-radius: 9px; font-weight: 700; font-size: 13px; color: var(--muted); }
+  .seg button.on { background: var(--glass); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  .lnote { font-size: 12px; color: var(--muted); margin: 8px 2px 0; line-height: 1.45; }
+  /* ---------- Список мест ---------- */
+  #places-sheet { max-height: 55vh; overflow: auto; }
+  #places-sheet h2, #route-sheet h2 { margin: 2px 4px 10px; font: 700 15px Unbounded, sans-serif; }
+  #places { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .place { text-align: left; padding: 11px 12px; border-radius: 14px; background: var(--soft); font-size: 13px; font-weight: 700; line-height: 1.25; }
+
+  /* ---------- Итог маршрута ---------- */
+  #route-sheet { max-height: 52vh; overflow: auto; }
+  #rsum { display: flex; align-items: baseline; gap: 10px; margin: 0 34px 4px 2px; }
+  #rsum b { font: 700 24px Unbounded, sans-serif; }
+  #rsum span { color: var(--muted); font-weight: 700; }
+  #rnote { font-size: 12px; color: var(--muted); margin: 0 2px; }
+  #steps { margin: 10px 0 0; padding: 0; list-style: none; }
+  #steps li { display: flex; gap: 10px; padding: 9px 4px; border-top: 1px solid var(--soft); font-size: 13.5px; cursor: pointer; }
+  #steps li .n { width: 24px; height: 24px; border-radius: 8px; background: var(--soft); display: grid; place-items: center; font-weight: 800; font-size: 12px; flex: none; }
+  #steps li small { display: block; color: var(--muted); }
+
+  /* ---------- Видео-плеер ---------- */
+  .lb { position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 15; transition: height .6s ease; pointer-events: none; }
+  #lb-top { top: 0; } #lb-bot { bottom: 0; }
+  body.video .lb { height: calc(7vh + var(--top)); } body.video #lb-bot { height: calc(7vh + var(--bot)); }
+  body.video #top, body.video #bar, body.video #compass, body.video .sheet, body.video #osm { opacity: 0; pointer-events: none; }
+  #player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 16; padding: 0 14px calc(var(--bot) + 12px); color: #fff; display: none; background: linear-gradient(transparent, rgba(0,0,0,.55)); }
+  body.video #player { display: block; }
+  #vtitle { padding: 30px 4px 14px; transition: opacity .5s; }
+  #vtitle .k { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--sun); }
+  #vtitle h3 { margin: 4px 0 2px; font: 700 22px/1.15 Unbounded, sans-serif; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+  #vtitle p { margin: 0; font-size: 13.5px; opacity: .85; max-width: 560px; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+  #pctl { display: flex; align-items: center; gap: 10px; }
+  #pctl button { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; color: #fff; background: rgba(255,255,255,.14); flex: none; }
+  #pctl #pp { width: 48px; height: 48px; background: #fff; color: #000; font-size: 20px; }
+  #ptime { font-size: 12px; font-variant-numeric: tabular-nums; opacity: .85; flex: none; min-width: 74px; }
+  #scrub { position: relative; height: 30px; margin: 0 4px 4px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+  #scrub .track { position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px; background: rgba(255,255,255,.3); }
+  #scrub .fill { position: absolute; left: 0; height: 4px; border-radius: 4px; background: var(--red); }
+  #scrub .knob { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; transform: translateX(-50%); box-shadow: 0 1px 6px rgba(0,0,0,.4); }
+  #scrub .tick { position: absolute; width: 3px; height: 8px; background: rgba(255,255,255,.75); border-radius: 2px; transform: translateX(-50%); }
+  #prate { font-size: 13px !important; font-weight: 800; }
+
+  /* ---------- Прогулка ---------- */
+  #walk { display: none; }
+  body.walking #walk { display: block; }
+  body.walking #top, body.walking #bar, body.walking #compass, body.walking .sheet, body.walking #labels { opacity: 0; pointer-events: none; }
+  #walk-top { position: fixed; top: calc(var(--top) + 10px); left: 10px; right: 10px; max-width: 520px; margin: 0 auto; z-index: 12; padding: 10px 14px; border-radius: 16px; }
+  #walk-top b { display: block; font-size: 14.5px; } #walk-top span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #walk-btns { position: fixed; right: 10px; bottom: calc(var(--bot) + 14px); z-index: 12; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  #walk-btns .act { box-shadow: 0 4px 14px rgba(0,0,0,.18); background: var(--glass); backdrop-filter: blur(10px); }
+  #walk-btns .act.primary { background: var(--blue); }
+  #walk-window, #walk-glb { display: none; } body.interior #walk-window, body.interior #walk-glb { display: block; }
+  #stick { position: fixed; left: 22px; bottom: calc(var(--bot) + 26px); width: 124px; height: 124px; border-radius: 50%; z-index: 12; background: rgba(255,255,255,.28); border: 2px solid rgba(255,255,255,.7); backdrop-filter: blur(6px); touch-action: none; display: grid; place-items: center; }
+  #knob { width: 54px; height: 54px; border-radius: 50%; background: #fff; box-shadow: 0 3px 12px rgba(0,0,0,.3); pointer-events: none; }
+  @media (pointer: fine) { #stick { display: none; } }
+  /* ---------- Прочее ---------- */
+  #toast { position: fixed; left: 50%; top: calc(var(--top) + 76px); transform: translate(-50%, -10px); padding: 10px 16px; border-radius: 14px; z-index: 30; font-weight: 700; font-size: 14px; opacity: 0; pointer-events: none; transition: .25s; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #about { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; background: rgba(10,14,24,.35); opacity: 0; pointer-events: none; transition: .2s; }
+  #about.open { opacity: 1; pointer-events: auto; }
+  #about .box { position: relative; max-width: 440px; max-height: 80vh; overflow: auto; padding: 22px 20px 18px; border-radius: 22px; font-size: 14px; line-height: 1.55; }
+  #about h2 { margin: 0 0 8px; font: 700 18px Unbounded, sans-serif; }
+  #about p { margin: 0 0 10px; color: var(--muted); }
+  #about .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(232,17,45,.1); color: var(--red); font-weight: 800; font-size: 12px; }
+  #osm { position: fixed; right: 8px; left: 8px; text-align: right; bottom: calc(var(--bot) + 1px); z-index: 4; font-size: 9px; color: var(--muted); pointer-events: none; }
+  #osm a { color: var(--muted); pointer-events: auto; }
+  #loader { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: #e9eef2; transition: opacity .8s; }
+  #loader.hide { opacity: 0; pointer-events: none; }
+  #loader div { font: 700 15px Unbounded, sans-serif; color: #1d2128; display: flex; gap: 10px; align-items: center; }
+  #loader i { width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--red); border-right-color: transparent; animation: r .8s linear infinite; }
+  @keyframes r { to { transform: rotate(1turn); } }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="labels"></div>
+
+  <!-- Верх: поиск и маршрут -->
+  <div id="top">
+    <div id="searchbar" class="glass">
+      <svg id="logo" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="#e8112d"/><g fill="#ffd200"><circle cx="20" cy="20" r="8"/><g id="rays"><path d="M19 7h2l-1 5z"/></g></g><path d="M8 30l6-9 4 5 5-8 9 12z" fill="#fff" opacity=".95"/></svg>
+      <button id="back" class="ibtn" aria-label="Назад">←</button>
+      <input id="q" type="text" placeholder="Поиск мест и адресов" autocomplete="off" enterkeyhint="search">
+      <button id="clear" class="ibtn hidden" aria-label="Очистить">✕</button>
+      <button id="btn-about" class="ibtn" aria-label="О макете">ⓘ</button>
+    </div>
+    <div id="routebox" class="glass">
+      <div class="rrow"><span class="rdot" style="background:var(--green)"></span><button class="rfield ph" id="r-from">Откуда?</button><button class="ibtn" id="r-close" aria-label="Закрыть">✕</button></div>
+      <div class="rrow"><span class="rdot" style="background:var(--red)"></span><button class="rfield ph" id="r-to">Куда?</button><button class="ibtn" id="r-swap" aria-label="Поменять местами">⇅</button></div>
+      <div id="modes"><button class="mode on" data-m="walk">🚶 Пешком</button><button class="mode" data-m="car">🚗 На машине</button></div>
+    </div>
+    <div id="panel" class="glass">
+      <div id="chips"></div>
+      <button id="pickmap" class="hidden">📍 Выбрать точку на карте</button>
+      <div id="results"></div>
+    </div>
+  </div>
+
+  <button id="compass" class="glass" aria-label="Север наверх"><svg id="compass-needle" viewBox="0 0 40 40"><path d="M20 4l5 16h-10z" fill="#e8112d"/><path d="M20 36l5-16h-10z" fill="#9aa3b5"/><text x="20" y="14.5" font-size="6.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="Manrope">С</text></svg></button>
+
+  <!-- Низ: навигация -->
+  <nav id="bar" class="glass">
+    <button id="btn-home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Обзор</button>
+    <button id="btn-places"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Места</button>
+    <button id="btn-video"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>Видео</button>
+    <button id="btn-route"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></svg>Маршрут</button>
+    <button id="btn-time"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>Слои</button>
+  </nav>
+
+  <!-- Карточка места -->
+  <section id="card" class="sheet glass">
+    <button class="x" id="card-close" aria-label="Закрыть">×</button>
+    <div id="card-tag"></div>
+    <h3 id="card-title"></h3>
+    <p id="card-text"></p>
+    <div id="card-pass"></div>
+    <div class="actions">
+      <button class="act primary" id="act-to">↗ Маршрут сюда</button>
+      <button class="act" id="act-from">Отсюда</button>
+      <button class="act" id="act-walk">🚶 Прогулка</button>
+      <button class="act" id="act-enter">🏢 Войти</button>
+      <button class="act" id="act-say">🔊</button>
+    </div>
+  </section>
+
+  <!-- Список достопримечательностей -->
+  <section id="places-sheet" class="sheet glass">
+    <button class="x" id="places-close" aria-label="Закрыть">×</button>
+    <h2>Куда полетим?</h2>
+    <div id="places"></div>
+  </section>
+
+  <!-- Слои -->
+  <section id="layers-sheet" class="sheet glass">
+    <button class="x" id="layers-close" aria-label="Закрыть">×</button>
+    <h2>Слои</h2>
+    <div class="lrow"><span>Подложка</span><div class="seg" data-k="base"><button data-v="schema">Схема</button><button data-v="sat">Спутник</button></div></div>
+    <div class="lrow"><span>Время суток</span><div class="seg" data-k="time"><button data-v="day">☀️ День</button><button data-v="night">🌙 Ночь</button></div></div>
+    <div class="lrow"><span>Деревья</span><div class="seg" data-k="trees"><button data-v="on">Вкл</button><button data-v="off">Выкл</button></div></div>
+    <div class="lrow"><span>Тени <small>(выкл — быстрее)</small></span><div class="seg" data-k="shadows"><button data-v="on">Вкл</button><button data-v="off">Выкл</button></div></div>
+    <p class="lnote">Спутник: Sentinel-2 cloudless 2016, разрешение ~10 м — видно кварталы, но не отдельные дома. Рельеф: Copernicus DEM 30 м.</p>
+  </section>
+
+  <!-- Итог маршрута -->
+  <section id="route-sheet" class="sheet glass">
+    <button class="x" id="rs-close" aria-label="Свернуть">×</button>
+    <div id="rsum"><b id="rtime"></b><span id="rdist"></span></div>
+    <div id="rnote"></div>
+    <div class="actions">
+      <button class="act red" id="r-video">▶ Смотреть как видео</button>
+      <button class="act" id="r-voice">🔊 Озвучить</button>
+    </div>
+    <ul id="steps"></ul>
+  </section>
+
+  <!-- Видео-плеер -->
+  <div id="lb-top" class="lb"></div><div id="lb-bot" class="lb"></div>
+  <div id="player">
+    <div id="vtitle"><div class="k" id="vk"></div><h3 id="vh"></h3><p id="vp"></p></div>
+    <div id="scrub"><div class="track"></div><div class="fill"></div><div class="knob"></div></div>
+    <div id="pctl">
+      <button id="pp" aria-label="Пауза">❚❚</button>
+      <span id="ptime">0:00 / 0:00</span>
+      <span style="flex:1"></span>
+      <button id="prate" aria-label="Скорость">1×</button>
+      <button id="pvoice" aria-label="Голос">🔊</button>
+      <button id="pclose" aria-label="Закрыть">✕</button>
+    </div>
+  </div>
+
+  <!-- Прогулка / внутри здания -->
+  <div id="walk">
+    <div id="walk-top" class="glass"><div><b id="walk-title"></b><span id="walk-sub"></span></div></div>
+    <div id="walk-btns">
+      <button class="act" id="walk-window">🪟 К окну</button>
+      <button class="act" id="walk-glb">📂 Своя модель</button>
+      <button class="act primary" id="walk-exit">⬆ Наверх</button>
+    </div>
+    <div id="stick"><div id="knob"></div></div>
+    <input id="glb-file" type="file" accept=".glb,model/gltf-binary" hidden>
+  </div>
+
+  <div id="toast" class="glass"></div>
+
+  <div id="about"><div class="box glass">
+    <button class="x" id="about-close" aria-label="Закрыть">×</button>
+    <h2>О макете</h2>
+    <p><span class="pill">Версия 4</span> 3D-макет центра Бишкека по <b>реальным данным OpenStreetMap</b>: <span id="stats"></span>.</p>
+    <p><b>Поиск</b> — по названиям, адресам («Чуй 166»), улицам и категориям (кафе, аптеки…). <b>Маршрут</b> — пешком или на машине, с подсказками и голосом. <b>Видео</b> — тур по городу или облёт маршрута, с паузой и перемоткой.</p>
+    <p>Где этажность указана в OSM — она точная; где нет — оценена по площади. Деревья и фонари расставлены автоматически. Время в пути примерное, без пробок. Определение «где я» на этой странице недоступно — выбери точку на карте.</p>
+    <p><b>Управление:</b> один палец — вращать, два — приблизить или сдвинуть. Нажми на любой дом, чтобы узнать о нём.</p>
+    <p><b>Источники:</b> здания, дороги, места — © участники OpenStreetMap (ODbL). Рельеф — Copernicus DEM GLO-30 © DLR e.V. 2010–2014 и © Airbus Defence and Space GmbH 2014–2018, предоставлено в рамках программы Copernicus (ЕС и ЕКА). Спутник — Sentinel-2 cloudless 2016 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017), CC BY 4.0.</p>
+  </div></div>
+
+  <div id="osm"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© участники OpenStreetMap</a> · Рельеф: Copernicus DEM<span id="attr-sat" class="hidden"> · <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless 2016 by EOX</a> (Copernicus Sentinel 2016–2017, CC BY 4.0)</span></div>
+  <div id="loader"><div><i></i><span id="loader-text">Загружаем…</span></div></div>
+
+  <script>
+    const r = document.getElementById('rays'), p = r.innerHTML; let h = '';
+    for (let i = 0; i < 20; i++) h += `<g transform="rotate(${i * 18} 20 20)">${p}</g>`; r.innerHTML = h;
+  </script>
+  <!-- Карта импортов: откуда браузер берёт библиотеку Three.js -->
+  <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
