@@ -82,6 +82,7 @@ function updateClock(st) {
   if (ev.set && now < ev.set && st.el > -0.8) txt = `закат через ${rel(mins(ev.set))}`;
   else if (ev.rise && now < ev.rise) txt = `рассвет через ${rel(mins(ev.rise))}`;
   else txt = st.el > 0 ? 'день' : 'ночь';
+  const stt = document.getElementById('st-time'); if (stt) stt.textContent = fmt(now);
   el.innerHTML = `<b${atmo.mode === 'live' ? '' : ' style="color:var(--sun)"'}>${fmt(now)}</b><span>${txt}</span>`;
 }
 
@@ -146,6 +147,7 @@ function openPlace(place, doFly = true, dist = 260) {
   world.highlight(place.building || null);
   pin.visible = !place.landmark; pin.position.set(place.x, (place.building ? place.building.base + place.building.h : elev(place.x, place.z)) + 1, place.z);
   if (doFly) flyTo(new THREE.Vector3(place.x, 0, place.z), dist, 0.95);
+  requestShot(); remember(place); syncFavBtn();
 }
 function closeCard() {
   $('#card').classList.remove('open'); world.highlight(null); pin.visible = false;
@@ -353,8 +355,8 @@ function computeRoute() {
   if (!r) { toast('Не удалось проложить маршрут'); return; }
   route.result = r;
   route.mesh = routeMesh(r.pts, r.mode); scene.add(route.mesh);
-  $('#rtime').textContent = fmtTime(r.time); $('#rdist').textContent = fmtDist(r.length) + (r.mode === 'car' ? ' · на машине' : ' · пешком');
-  $('#rnote').textContent = r.mode === 'car' ? 'Время примерное, без учёта пробок и светофоров.' : 'Пешком по улицам, тротуарам и дорожкам.';
+  $('#rtime').textContent = fmtTime(r.time); $('#rdist').textContent = fmtDist(r.length) + ({ car: ', на машине', bike: ', на велосипеде', walk: ', пешком' })[r.mode];
+  $('#rnote').textContent = { car: 'Время примерное, без учёта пробок и светофоров.', bike: 'По улицам и дорожкам, около 14 км/ч.', walk: 'Пешком по улицам, тротуарам и дорожкам.' }[r.mode];
   $('#steps').innerHTML = r.steps.map((s, i) => `<li data-i="${i}"><span class="n">${i + 1}</span><div>${esc(s.action)}${s.name ? ' — ' + esc(s.name) : ''}${s.len ? `<small>${fmtDist(s.len)}</small>` : ''}</div></li>`).join('');
   $('#steps').querySelectorAll('li').forEach(li => li.onclick = () => { const s = r.steps[+li.dataset.i]; const p = s.x !== null ? s : { x: route.to.x, z: route.to.z }; flyTo(new THREE.Vector3(p.x, 0, p.z), 220, 0.9); });
   $('#route-sheet').classList.add('open');
@@ -424,7 +426,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 });
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 || performance.now() - down.t > 500) return;
-  if (document.body.classList.contains('video') || walker.active || camAnim) return;
+  if (document.body.classList.contains('video') || walker.active || camAnim || document.body.classList.contains('measuring')) return;
   mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(mouse, camera);
   if (mapPick) { // выбор точки маршрута на карте
@@ -474,6 +476,167 @@ $('#places').onclick = (e) => { const b = e.target.closest('.place'); if (b) ope
 $('#compass').onclick = () => { const s = new THREE.Spherical().setFromVector3(new THREE.Vector3().subVectors(camera.position, controls.target)); flyTo(controls.target.clone(), s.radius, s.phi, 900, 0); };
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
+// ========== 13. Интерфейс по макету: режимы, меню, слои, статус ==========
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem('b3d.' + k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('b3d.' + k, JSON.stringify(v)); } catch (e) { } } };
+const desktop = () => innerWidth >= 900;
+// --- меню ---
+$('#btn-menu').onclick = () => { if (desktop()) document.body.classList.toggle('menu-closed'); else document.body.classList.toggle('menu-open'); };
+const navOn = (k) => document.querySelectorAll('.nav').forEach(n => n.classList.toggle('on', n.dataset.nav === k));
+const closeMenuMobile = () => { if (!desktop()) document.body.classList.remove('menu-open'); };
+document.querySelectorAll('.nav').forEach(n => n.onclick = () => {
+  const k = n.dataset.nav; navOn(k); closeMenuMobile();
+  if (k === 'home') { closeCard(); HOME(); }
+  else if (k === 'tour') { startVideo(tour(), 'Тур по Бишкеку'); navOn('home'); }
+  else if (k === 'places') { closeCard(); $('#places-sheet').classList.add('open'); }
+  else if (k === 'cats') { setSearching(true); }
+  else if (k === 'fav') showList('fav');
+  else if (k === 'hist') showList('hist');
+  else if (k === 'route') { route.active ? null : openRoute(); }
+  else if (k === 'layers') { closeCard(); $('#layers-sheet').classList.add('open'); }
+  else if (k === 'offline') toast('Офлайн-карты включатся на сайте GitHub Pages: там можно сохранять районы в телефон', 4200);
+  else if (k === 'measure') startMeasure();
+});
+// --- режимы (верхняя полоса) ---
+function setBase(b) { layers.base = b; applyLayers(); syncModes(); }
+function syncModes() {
+  document.querySelectorAll('#modebar button').forEach(b => b.classList.toggle('on', (b.dataset.mode === 'map' && layers.base === 'schema') || (b.dataset.mode === 'sat' && layers.base === 'sat') || (b.dataset.mode === '3d' && world.housesMesh.visible)));
+  document.querySelectorAll('.vm').forEach(v => v.classList.toggle('on', v.dataset.vm === vmode));
+}
+let vmode = 'sat';
+document.querySelectorAll('#modebar button').forEach(b => b.onclick = () => {
+  const m = b.dataset.mode;
+  if (m === 'map') setBase('schema');
+  else if (m === 'sat') setBase('sat');
+  else if (m === '3d') { world.housesMesh.visible = !world.housesMesh.visible; $('[data-lb=buildings]').checked = world.housesMesh.visible; syncModes(); }
+  else if (m === 'walk') { const t = controls.target; startWalk({ x: t.x + 1, z: t.z + 1 }); }
+  else if (m === 'pano') toast('Панорамы 360° подключим через Mapillary: нужен бесплатный ключ и сайт на GitHub Pages', 4200);
+});
+// --- режимы просмотра (плитки) ---
+const VM_ART = {
+  sat: 'radial-gradient(circle at 30% 40%, #6d7f55, #3e4a36 60%, #2a3326)',
+  city: 'linear-gradient(160deg, #f1e6cf 0 30%, #b9c3cc 30% 55%, #a4553b 55% 70%, #e8e3d9 70%)',
+  walk: 'linear-gradient(180deg, #8fbff0 0 45%, #d9d2c4 45% 60%, #4f535b 60%)',
+  pano: 'conic-gradient(from 0deg, #6aa7e8, #f2b53a, #7fb069, #6aa7e8)',
+  relief: 'linear-gradient(170deg, #fbfbff 0 18%, #9a8f80 18% 45%, #9fb27c 45% 75%, #c9cfa8 75%)',
+  hybrid: 'linear-gradient(135deg, #3e4a36 0 45%, #f2b53a 45% 49%, #3e4a36 49% 70%, #f3efe6 70% 73%, #3e4a36 73%)',
+};
+document.querySelectorAll('.vm').forEach(v => { v.querySelector('i').style.background = VM_ART[v.dataset.vm]; v.onclick = () => setViewMode(v.dataset.vm); });
+function setViewMode(m) {
+  if (m === 'pano') return toast('Панорамы 360° появятся после подключения Mapillary', 3500);
+  if (m === 'walk') { const t = controls.target; return startWalk({ x: t.x + 1, z: t.z + 1 }); }
+  vmode = m; closeMenuMobile();
+  world.housesMesh.visible = m !== 'relief'; world.treesMesh.visible = m !== 'relief' && layers.trees === 'on';
+  layers.base = m === 'city' ? 'schema' : 'sat'; applyLayers();
+  if (m === 'hybrid') for (const x of world.flatGroup.children) x.visible = /^road[1-4]$|^area1$/.test(x.userData.kind || '');
+  if (m === 'relief') flyTo(new THREE.Vector3(0, 0, 3000), 16000, 1.2, 2200);
+  document.querySelectorAll('[data-lb]').forEach(c => { if (c.dataset.lb === 'buildings') c.checked = world.housesMesh.visible; });
+  syncModes();
+}
+// --- слои внизу ---
+document.querySelectorAll('[data-lb]').forEach(c => c.onchange = () => {
+  const k = c.dataset.lb, on = c.checked;
+  if (k === 'buildings') { world.housesMesh.visible = on; syncModes(); }
+  if (k === 'trees') { layers.trees = on ? 'on' : 'off'; world.treesMesh.visible = on; }
+  if (k === 'roads') for (const x of world.flatGroup.children) if (/^road/.test(x.userData.kind || '')) x.visible = on;
+  if (k === 'parks') for (const x of world.flatGroup.children) if (/^area[2347]$/.test(x.userData.kind || '')) x.visible = on && layers.base === 'schema';
+});
+// --- зум, 2D/3D, полный экран, моё место ---
+const dolly = (k) => { const off = new THREE.Vector3().subVectors(camera.position, controls.target); const d = THREE.MathUtils.clamp(off.length() * k, controls.minDistance, controls.maxDistance); const s = new THREE.Spherical().setFromVector3(off); flyTo(controls.target.clone(), d, s.phi, 450); };
+$('#z-in').onclick = () => dolly(0.6); $('#z-out').onclick = () => dolly(1.6);
+document.querySelectorAll('.d23 button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.d23 button').forEach(x => x.classList.toggle('on', x === b));
+  const d = camera.position.distanceTo(controls.target);
+  if (b.dataset.d === '2') { controls.maxPolarAngle = 0.02; flyTo(controls.target.clone(), Math.max(d, 600), 0.01, 900, 0); }
+  else { controls.maxPolarAngle = Math.PI * 0.47; flyTo(controls.target.clone(), d, 1.0, 900); }
+});
+$('#btn-full').onclick = () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => toast('Полноэкранный режим недоступен на этой странице')); } catch (e) { toast('Полноэкранный режим недоступен на этой странице'); } };
+let mePin = null;
+$('#btn-locate').onclick = () => {
+  if (!navigator.geolocation) return toast('Определение местоположения не поддерживается');
+  toast('Определяем местоположение…');
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const { latitude: la, longitude: lo } = pos.coords, p = toXZ(la, lo);
+    if (Math.abs(p.x) > 30000 || Math.abs(p.z) > 30000) return toast('Вы далеко от Бишкека — карта покрывает только город');
+    if (!mePin) { mePin = new THREE.Mesh(new THREE.SphereGeometry(4, 20, 14), new THREE.MeshBasicMaterial({ color: 0x3d8ef0 })); scene.add(mePin); }
+    mePin.position.set(p.x, elev(p.x, p.z) + 4, p.z); flyTo(new THREE.Vector3(p.x, 0, p.z), 350, 0.95);
+    setRoutePoint('from', { title: 'Моё местоположение', x: p.x, z: p.z });
+  }, () => toast('Нет доступа к местоположению. На этой странице оно отключено — заработает на сайте GitHub Pages', 4500), { enableHighAccuracy: true, timeout: 8000 });
+};
+// --- «Оживить город» ---
+let cycleOn = false;
+document.querySelectorAll('[data-alive]').forEach(b => b.onclick = () => {
+  b.classList.toggle('on'); const on = b.classList.contains('on'), k = b.dataset.alive;
+  if (k === 'traffic') traffic.group.visible = on;
+  if (k === 'weather') { clouds.group.visible = on; lifeShared.uWind.value = on ? 1 : 0; }
+  if (k === 'cycle') { cycleOn = on; if (!on) { layers.time = 'live'; applyLayers(); } else toast('Сутки проходят за минуту'); }
+});
+// --- онлайн / офлайн ---
+const net = () => { $('#net').textContent = navigator.onLine ? 'Онлайн' : 'Офлайн'; $('#net').classList.toggle('off', !navigator.onLine); };
+addEventListener('online', net); addEventListener('offline', net); net();
+// --- строка состояния: координаты под курсором, высота, дата данных, погода, время ---
+$('#st-upd').textContent = (D.osmTime || '').slice(0, 10).split('-').reverse().join('.');
+let lastMove = 0;
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!desktop() || performance.now() - lastMove < 90) return; lastMove = performance.now();
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
+  const h = ray.intersectObjects([terrain.city, terrain.region], false)[0]; if (!h) return;
+  const { lat, lon } = toLatLon(h.point.x, h.point.z);
+  $('#st-coord').textContent = `${lat.toFixed(4)}° N, ${lon.toFixed(4)}° E`;
+  $('#st-alt').textContent = `${Math.round(elev(h.point.x, h.point.z) + TR.base)} м`;
+});
+(async () => { // погода: Open-Meteo (бесплатно, без ключа). На claude.ai внешние запросы закрыты — тогда просто не показываем
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=42.8746&longitude=74.5698&current=temperature_2m,wind_speed_10m&wind_speed_unit=ms&timezone=Asia%2FBishkek');
+    const j = await r.json(), c = j.current;
+    $('#st-weather').innerHTML = `☀️ <b>${c.temperature_2m > 0 ? '+' : ''}${Math.round(c.temperature_2m)}°C</b> &nbsp; 💨 <b>${c.wind_speed_10m.toFixed(0)} м/с</b>`;
+    lifeShared.uWind.value = THREE.MathUtils.clamp(c.wind_speed_10m / 3, 0.3, 3); // деревья качаются по реальному ветру
+  } catch (e) { /* нет сети — без погоды */ }
+})();
+// --- избранное и история ---
+const keyOf = (p) => `${p.title}|${Math.round(p.x)}|${Math.round(p.z)}`;
+const favs = () => store.get('fav', []), hist = () => store.get('hist', []);
+function remember(p) { const h = hist().filter(x => keyOf(x) !== keyOf(p)); h.unshift({ title: p.title, tag: p.tag, x: p.x, z: p.z, landmark: p.landmark || null }); store.set('hist', h.slice(0, 30)); }
+function syncFavBtn() { const on = current && favs().some(f => keyOf(f) === keyOf(current)); $('#act-fav').classList.toggle('on', !!on); $('#act-fav').textContent = on ? '♥ В избранном' : '♡ В избранное'; }
+$('#act-fav').onclick = () => {
+  if (!current) return; let f = favs(); const k = keyOf(current);
+  if (f.some(x => keyOf(x) === k)) f = f.filter(x => keyOf(x) !== k); else f.unshift({ title: current.title, tag: current.tag, x: current.x, z: current.z, landmark: current.landmark || null });
+  store.set('fav', f); syncFavBtn(); toast(f.some(x => keyOf(x) === k) ? 'Добавлено в избранное' : 'Убрано из избранного');
+};
+function showList(kind) {
+  closeCard(); const list = kind === 'fav' ? favs() : hist();
+  $('#fav-title').textContent = kind === 'fav' ? 'Избранное' : 'История';
+  $('#fav-list').innerHTML = list.length ? list.map((p, i) => `<button class="res" data-i="${i}"><span class="ic">${p.landmark ? '⭐' : '📍'}</span><div><b>${esc(p.title)}</b><span>${esc(p.tag || '')}</span></div></button>`).join('')
+    : `<div class="empty">${kind === 'fav' ? 'Пока пусто. Откройте место и нажмите «В избранное».' : 'Здесь появятся места, которые вы открывали.'}</div>`;
+  $('#fav-list').querySelectorAll('.res').forEach(b => b.onclick = () => { const p = list[+b.dataset.i]; $('#fav-sheet').classList.remove('open'); p.landmark ? openLandmark(p.landmark) : openPlace({ ...p, text: '' }, true, 240); });
+  $('#fav-sheet').classList.add('open');
+}
+$('#fav-close').onclick = () => $('#fav-sheet').classList.remove('open');
+// --- снимок 3D-модели для карточки (вместо фото, пока нет ваших фотографий) ---
+let wantShot = false;
+function requestShot() { wantShot = true; $('#card').classList.remove('has-img'); }
+function takeShot() {
+  if (!wantShot || fly || camAnim) return; wantShot = false;
+  try { $('#card-img').src = renderer.domElement.toDataURL('image/jpeg', 0.8); $('#card').classList.add('has-img'); } catch (e) { }
+}
+// --- линейка ---
+let mPts = [], mLine = null;
+function startMeasure() { closeCard(); mPts = []; drawMeasure(); document.body.classList.add('measuring'); }
+function drawMeasure() {
+  if (mLine) { scene.remove(mLine); mLine.geometry.dispose(); mLine = null; }
+  let d = 0; for (let i = 1; i < mPts.length; i++) d += mPts[i].distanceTo(mPts[i - 1]);
+  $('#m-dist').textContent = fmtDist(d); $('#m-hint').textContent = mPts.length ? '' : 'нажимайте на карту';
+  if (mPts.length > 1) { const g = new THREE.BufferGeometry().setFromPoints(mPts.map(p => p.clone().setY(p.y + 2))); mLine = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xf2b53a, depthTest: false })); mLine.renderOrder = 9; scene.add(mLine); }
+}
+$('#m-clear').onclick = () => { mPts = []; drawMeasure(); };
+$('#m-done').onclick = () => { document.body.classList.remove('measuring'); mPts = []; drawMeasure(); navOn('home'); };
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!document.body.classList.contains('measuring')) return;
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
+  const h = ray.intersectObjects([terrain.city, terrain.region, world.housesMesh], false)[0]; if (!h) return;
+  mPts.push(h.point.clone()); drawMeasure();
+});
+syncModes();
+
 // ========== 12. Главный цикл ==========
 const flagObj = world.decor.children.find(g => g.userData.flag)?.userData.flag;
 const flagBase = flagObj ? flagObj.geometry.attributes.position.array.slice() : null;
@@ -487,13 +650,14 @@ function loop(now) {
   else if (!player.update(dt)) { stepFly(now); if (!fly) controls.target.y += (elev(controls.target.x, controls.target.z) - controls.target.y) * 0.2; controls.update(); }
   if (now - lastAtmo > 1000) { lastAtmo = now; applyTime(); } // солнце движется в реальном времени
   lifeShared.uTime.value = now / 1000;
+  if (cycleOn) { atmo.mode = 'manual'; atmo.hours = (atmo.hours + dt * 0.4) % 24; if (now - lastAtmo > 120) { lastAtmo = now; applyTime(); } }
   traffic.update(dt, night); clouds.update(dt, night, lastSt.golden || 0);
   if (flagObj) { const p = flagObj.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const x = flagBase[i * 3] + 7.5; p.array[i * 3 + 2] = Math.sin(x * 0.55 - now * 0.004) * 0.12 * x; } p.needsUpdate = true; }
   if (wheel) wheel.rotation.z = now * 0.00012;
   if (flame) flame.scale.set(1, 1 + Math.sin(now * 0.02) * 0.15, 1);
   const bob = Math.sin(now * 0.004) * 1.5; pin.children[0].position.y = 22 + bob; pinA.rotation.y = pinB.rotation.y = now * 0.001;
   $('#compass-needle').style.transform = `rotate(${Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z)}rad)`;
-  updateSun(); renderer.render(scene, camera); updateLabels();
+  updateSun(); renderer.render(scene, camera); takeShot(); updateLabels();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

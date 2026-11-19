@@ -86,7 +86,7 @@ export class Router {
     const a = this.nearest(from.x, from.z, mode), b = this.nearest(to.x, to.z, mode);
     if (a < 0 || b < 0) return null;
     const N = this.X.length, g = new Float64Array(N).fill(Infinity), via = new Int32Array(N).fill(-1), done = new Uint8Array(N);
-    const vmax = mode === 'car' ? 45 / 3.6 : WALK_SPEED / 3.6;
+    const vmax = mode === 'car' ? 45 / 3.6 : mode === 'bike' ? 15 / 3.6 : WALK_SPEED / 3.6;
     const h = (i) => Math.hypot(this.X[i] - this.X[b], this.Z[i] - this.Z[b]) / vmax;
     const heap = new Heap(); g[a] = 0; heap.push(h(a), a);
     while (heap.size) {
@@ -95,7 +95,7 @@ export class Router {
       for (const e of this.adj[u] || []) {
         if (mode === 'car' && !this.eCar[e]) continue;
         const v = this.eTo[e]; if (done[v]) continue;
-        const sp = mode === 'car' ? CAR_SPEED[this.eCls[e]] / 3.6 : (WALK_SPEED * (this.eCls[e] <= 2 ? 0.97 : 1)) / 3.6;
+        const sp = mode === 'car' ? CAR_SPEED[this.eCls[e]] / 3.6 : mode === 'bike' ? (this.eCls[e] === 7 ? 9 : 14) / 3.6 : (WALK_SPEED * (this.eCls[e] <= 2 ? 0.97 : 1)) / 3.6;
         const cost = g[u] + this.eLen[e] / sp;
         if (cost < g[v]) { g[v] = cost; via[v] = e; heap.push(cost + h(v), v); }
       }
@@ -158,7 +158,7 @@ export function routeMesh(pts0, mode) {
     for (let k = 0; k < 8; k++) { const a1 = k / 8 * Math.PI * 2, a2 = (k + 1) / 8 * Math.PI * 2; tri(x2, z2, x2 + Math.cos(a1) * w / 2, z2 + Math.sin(a1) * w / 2, x2 + Math.cos(a2) * w / 2, z2 + Math.sin(a2) * w / 2); }
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: mode === 'car' ? 0x1f7ae0 : 0x18a957, fog: false }));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: mode === 'car' ? 0x3d8ef0 : mode === 'bike' ? 0xf2b53a : 0x5cc46a, fog: false }));
   m.renderOrder = 3;
   return m;
 }

@@ -207,11 +207,186 @@
   #loader .bar i { display: block; height: 100%; width: 40%; background: var(--sun); border-radius: 3px; animation: ld 1.2s ease-in-out infinite; }
   @keyframes ld { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
   @media (prefers-reduced-motion: reduce) { .sheet, #toast, #about, .lb { transition: none; } #loader .bar i { animation: none; } }
+
+  /* =================== Макет: верхняя полоса, меню, режимы, статус =================== */
+  #topbar { position: fixed; top: calc(var(--top) + 12px); left: 12px; z-index: 9; display: none; align-items: center; gap: 10px; }
+  #brand { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 14px 0 10px; border-radius: 18px; }
+  #brand svg { width: 34px; height: 34px; }
+  #brand b { display: block; font: 600 16px Unbounded, sans-serif; letter-spacing: .01em; }
+  #brand span.sub { display: block; font-size: 12px; color: var(--mist); }
+  .net { display: flex; align-items: center; gap: 6px; margin-left: 8px; font-size: 12.5px; font-weight: 600; color: var(--steppe); }
+  .net::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .net.off { color: #ff8a7a; }
+  #modebar { display: flex; gap: 2px; height: 46px; padding: 4px; border-radius: 16px; align-items: center; }
+  #modebar button { height: 38px; padding: 0 13px; border-radius: 12px; font-weight: 600; font-size: 13.5px; color: var(--mist); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  #modebar button svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #modebar button.on { background: var(--sky); color: #08121f; }
+  #modebar button.soon { opacity: .55; }
+  #btn-menu { display: grid; }
+  #side { position: fixed; top: calc(var(--top) + 80px); left: 12px; z-index: 8; width: 224px; padding: 8px; border-radius: 20px; display: none; flex-direction: column; gap: 2px; max-height: calc(100vh - 220px); overflow: auto; }
+  body.menu-open #side { display: flex; }
+  .nav { display: flex; align-items: center; gap: 12px; height: 42px; padding: 0 12px; border-radius: 12px; font-weight: 600; font-size: 14.5px; text-align: left; }
+  .nav svg { width: 20px; height: 20px; stroke: var(--snow); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .nav:hover, .nav.on { background: var(--soft); }
+  .nav.on { color: var(--sun); } .nav.on svg { stroke: var(--sun); }
+  .nav small { margin-left: auto; color: var(--mist); font-weight: 500; font-size: 11.5px; }
+  #alive { margin-top: 8px; padding: 12px; border-radius: 16px; background: linear-gradient(150deg, rgba(242,181,58,.22), rgba(106,167,232,.12)); }
+  #alive b { display: block; font: 600 14px Unbounded, sans-serif; margin-bottom: 8px; }
+  .tg { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13.5px; font-weight: 500; }
+  .sw { width: 38px; height: 22px; border-radius: 22px; background: rgba(255,255,255,.18); position: relative; flex: none; }
+  .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .sw.on { background: var(--sun); } .sw.on::after { transform: translateX(16px); }
+  #viewmodes { position: fixed; right: 12px; top: calc(var(--top) + 80px); z-index: 8; width: 310px; padding: 14px; border-radius: 20px; display: none; }
+  #viewmodes h2 { margin: 0 0 10px; font: 600 15px Unbounded, sans-serif; }
+  #vm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .vm { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 600; text-align: center; }
+  .vm i { display: block; aspect-ratio: 4/3; border-radius: 12px; background-size: cover; background-position: center; border: 2px solid transparent; }
+  .vm.on i { border-color: var(--sky); }
+  .vm.soon { opacity: .55; }
+  #zoombox { display: flex; flex-direction: column; gap: 8px; }
+  .d23 { display: flex; border-radius: 14px; padding: 3px; }
+  .d23 button { width: 40px; height: 34px; border-radius: 11px; font-weight: 700; font-size: 13px; color: var(--mist); }
+  .d23 button.on { background: var(--sky); color: #08121f; }
+  #layerbar { position: fixed; z-index: 7; display: none; align-items: center; gap: 14px; height: 40px; padding: 0 14px; border-radius: 14px; font-size: 13px; font-weight: 600; }
+  #layerbar label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  #layerbar input { accent-color: var(--sky); width: 16px; height: 16px; }
+  #status { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; height: 34px; padding: 0 16px calc(var(--bot)); display: none; align-items: center; gap: 22px; font-size: 12.5px; color: var(--mist); background: rgba(var(--dusk), .9); border-top: 1px solid var(--line); }
+  #status b { color: var(--snow); font-weight: 600; font-variant-numeric: tabular-nums; }
+  #status .grow { flex: 1; }
+  #card-img { display: none; }
+  #fav-sheet { max-height: 60vh; overflow: auto; }
+  #measure-hud { position: fixed; left: 50%; top: calc(var(--top) + 80px); transform: translateX(-50%); z-index: 14; padding: 10px 14px; border-radius: 14px; display: none; align-items: center; gap: 12px; font-weight: 600; }
+  body.measuring #measure-hud { display: flex; }
+  #measure-hud b { font: 600 18px Unbounded, sans-serif; color: var(--sun); }
+  .fav-btn.on { color: var(--red); }
+
+  /* ---------- Телефон: меню выдвигается ---------- */
+  @media (min-width: 900px) and (max-width: 1260px) {
+    #modebar button svg { display: none; } #modebar button { padding: 0 10px; font-size: 13px; }
+    #brand span.sub { display: none; }
+    #dock { left: 300px; width: clamp(220px, calc(100vw - 300px - 470px), 400px); }
+  }
+  @media (max-width: 899px) {
+    #z-in, #z-out, #btn-full, #btn-home { display: none !important; }
+    #topbar { display: flex; left: auto; right: 66px; top: calc(var(--top) + 12px); }
+    #topbar #brand, #topbar #modebar { display: none; }
+    #btn-menu { position: fixed; left: 12px; top: calc(var(--top) + 64px); }
+    #side { top: calc(var(--top) + 116px); }
+    body.menu-open #viewmodes { display: block; top: auto; bottom: calc(var(--bot) + 150px); left: 10px; right: 10px; width: auto; max-width: 560px; margin: 0 auto; }
+  }
+
+  /* ---------- Компьютер: раскладка как на макете ---------- */
+  @media (min-width: 900px) {
+    #topbar { display: flex; }
+    #btn-menu { width: 56px; height: 56px; border-radius: 18px; }
+    body:not(.menu-closed) #side { display: flex; }
+    body:not(.menu-closed) #viewmodes { display: block; }
+    #clock, #actions { display: none !important; }
+    #dock { top: calc(var(--top) + 12px); bottom: auto; left: 362px; right: auto; width: clamp(240px, calc(100vw - 362px - 560px), 460px); margin: 0; }
+    #modebar { position: fixed; top: calc(var(--top) + 17px); right: 12px; }
+    #dock #panel { order: 2; }
+    #searchbar { height: 46px; border-radius: 16px; }
+    #rail { top: calc(var(--top) + 80px + 330px); }
+    body.menu-closed #rail { top: calc(var(--top) + 80px); }
+    #layerbar { display: flex; right: 12px; bottom: 46px; }
+    #status { display: flex; }
+    #osm { bottom: 40px; left: 260px; right: auto; text-align: left; }
+    .sheet { left: 12px; right: auto; bottom: 46px; width: 560px; max-width: none; margin: 0; }
+    body:not(.menu-closed) .sheet { left: 248px; width: min(560px, calc(100vw - 600px)); }
+    #card.has-img { display: grid; grid-template-columns: 170px 1fr; column-gap: 16px; }
+    #card.has-img #card-img { display: block; grid-row: 1 / span 6; width: 170px; height: 128px; border-radius: 14px; object-fit: cover; }
+    #card.has-img #card-pass, #card.has-img .actions { grid-column: 1 / -1; }
+    #route-sheet { left: auto !important; right: 12px; bottom: 96px; width: 380px !important; }
+    #routebox { top: auto; left: auto; right: 334px; bottom: 96px; width: 330px; margin: 0; }
+    body.routing #rail { top: calc(var(--top) + 80px + 330px); }
+    body.routing #clock { display: none; }
+    #toast { top: calc(var(--top) + 80px); }
+    #measure-hud { top: calc(var(--top) + 140px); }
+  }
 </style>
 </head>
 <body>
   <div id="stage"></div>
   <div id="labels"></div>
+
+
+  <!-- Верхняя полоса (по макету) -->
+  <header id="topbar">
+    <button id="btn-menu" class="rb glass" aria-label="Меню"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div id="brand" class="glass">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 32l10-15 6 8 7-12 11 19z" fill="#6aa7e8"/><path d="M13 17l3 4.5-3 1.5-3-1.5zM26 13l3.5 6-3.5 1.5-3.5-1.5z" fill="#f3efe6"/></svg>
+      <div><b>BISHKEK 3D</b><span class="sub">Интерактивная карта</span></div>
+      <span id="net" class="net">Онлайн</span>
+    </div>
+    <nav id="modebar" class="glass">
+      <button data-mode="map"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>Карта</button>
+      <button data-mode="sat"><svg viewBox="0 0 24 24"><path d="M5 19l5-5M14 4l6 6-4 4-6-6zM8 10l6 6M3 21l3-3"/></svg>Спутник</button>
+      <button data-mode="3d">3D</button>
+      <button data-mode="walk"><svg viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="2"/><path d="M10 21l2-6 3 3v3M9 12l2-4 4 1 2 4M11 8l-2 5"/></svg>Прогулка</button>
+      <button data-mode="pano" class="soon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 8v8"/></svg>Панорамы 360°</button>
+    </nav>
+  </header>
+
+  <!-- Левое меню -->
+  <aside id="side" class="glass">
+    <button class="nav on" data-nav="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Главная</button>
+    <button class="nav" data-nav="tour"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>Тур по городу</button>
+    <button class="nav" data-nav="places"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Места</button>
+    <button class="nav" data-nav="cats"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Категории</button>
+    <button class="nav" data-nav="fav"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Избранное</button>
+    <button class="nav" data-nav="route"><svg viewBox="0 0 24 24"><path d="M4 20l16-8L4 4l3 8z"/></svg>Маршруты</button>
+    <button class="nav" data-nav="hist"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>История</button>
+    <button class="nav" data-nav="layers"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>Слои</button>
+    <button class="nav" data-nav="offline"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Офлайн-карты<small>скоро</small></button>
+    <button class="nav" data-nav="measure"><svg viewBox="0 0 24 24"><path d="M4 17L17 4l3 3L7 20z"/><path d="M8 13l2 2M11 10l2 2M14 7l2 2"/></svg>Измерения</button>
+    <div id="alive">
+      <b>Оживить город</b>
+      <div class="tg">Машины<button class="sw on" data-alive="traffic" aria-label="Машины"></button></div>
+      <div class="tg">Облака и ветер<button class="sw on" data-alive="weather" aria-label="Облака"></button></div>
+      <div class="tg">Смена времени суток<button class="sw" data-alive="cycle" aria-label="Смена времени"></button></div>
+    </div>
+  </aside>
+
+  <!-- Режимы просмотра -->
+  <section id="viewmodes" class="glass">
+    <h2>Режимы просмотра</h2>
+    <div id="vm-grid">
+      <button class="vm" data-vm="sat"><i></i>Спутник</button>
+      <button class="vm" data-vm="city"><i></i>3D-город</button>
+      <button class="vm" data-vm="walk"><i></i>Прогулка</button>
+      <button class="vm soon" data-vm="pano"><i></i>Панорамы 360°</button>
+      <button class="vm" data-vm="relief"><i></i>Рельеф</button>
+      <button class="vm" data-vm="hybrid"><i></i>Гибрид</button>
+    </div>
+  </section>
+
+  <!-- Слои внизу -->
+  <div id="layerbar" class="glass">Слои карты:
+    <label><input type="checkbox" data-lb="buildings" checked>Здания</label>
+    <label><input type="checkbox" data-lb="roads" checked>Дороги</label>
+    <label><input type="checkbox" data-lb="trees" checked>Деревья</label>
+    <label><input type="checkbox" data-lb="parks" checked>Парки</label>
+  </div>
+
+  <!-- Строка состояния -->
+  <footer id="status">
+    <span>📍 <b id="st-coord">—</b></span>
+    <span>Высота: <b id="st-alt">—</b></span>
+    <span>Данные OSM: <b id="st-upd">—</b></span>
+    <span class="grow"></span>
+    <span id="st-weather"></span>
+    <span>🕒 <b id="st-time">—</b></span>
+  </footer>
+
+  <!-- Избранное / история -->
+  <section id="fav-sheet" class="sheet glass">
+    <button class="x" id="fav-close" aria-label="Закрыть">×</button>
+    <h2 id="fav-title">Избранное</h2>
+    <div id="fav-list"></div>
+  </section>
+
+  <!-- Измерения -->
+  <div id="measure-hud" class="glass">Расстояние: <b id="m-dist">0 м</b><span id="m-hint" style="color:var(--mist);font-weight:500">нажимайте на карту</span><button class="act" id="m-clear">Сбросить</button><button class="act primary" id="m-done">Готово</button></div>
 
   <!-- Живые часы Бишкека -->
   <div id="clock" class="glass"><b>--:--</b></div>
@@ -219,7 +394,12 @@
   <!-- Правая колонка -->
   <div id="rail">
     <button id="btn-time" class="rb glass" aria-label="Вид карты"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></button>
-    <button id="btn-home" class="rb glass" aria-label="Весь город"><svg viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/></svg></button>
+    <button id="btn-home" class="rb glass" aria-label="Весь город"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></button>
+    <button id="z-in" class="rb glass" aria-label="Приблизить"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="z-out" class="rb glass" aria-label="Отдалить"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button id="btn-locate" class="rb glass" aria-label="Моё местоположение"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
+    <div class="d23 glass"><button data-d="2">2D</button><button data-d="3" class="on">3D</button></div>
+    <button id="btn-full" class="rb glass" aria-label="Во весь экран"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button id="compass" class="rb glass" aria-label="Север наверх"><svg id="compass-needle" viewBox="0 0 40 40"><path d="M20 5l5 15h-10z" fill="#e8112d"/><path d="M20 35l5-15h-10z" fill="#a3abc0"/></svg></button>
   </div>
 
@@ -227,7 +407,7 @@
   <div id="routebox" class="glass">
     <div class="rrow"><span class="rdot" style="background:var(--steppe)"></span><button class="rfield ph" id="r-from">Откуда</button><button class="ibtn" id="r-close" aria-label="Закрыть маршрут">✕</button></div>
     <div class="rrow"><span class="rdot" style="background:var(--red)"></span><button class="rfield ph" id="r-to">Куда</button><button class="ibtn" id="r-swap" aria-label="Поменять местами">⇅</button></div>
-    <div id="modes"><button class="mode on" data-m="walk">Пешком</button><button class="mode" data-m="car">На машине</button></div>
+    <div id="modes"><button class="mode" data-m="car">🚗 Авто</button><button class="mode on" data-m="walk">🚶 Пешком</button><button class="mode" data-m="bike">🚲 Вело</button></div>
   </div>
 
   <!-- Низ: быстрые действия и поиск -->
@@ -255,6 +435,7 @@
   <!-- Карточка места -->
   <section id="card" class="sheet glass">
     <button class="x" id="card-close" aria-label="Закрыть">×</button>
+    <img id="card-img" alt="Вид на это место в 3D-модели">
     <div id="card-tag"></div>
     <h3 id="card-title"></h3>
     <p id="card-text"></p>
@@ -263,6 +444,7 @@
       <button class="act" id="act-from">Отсюда</button>
       <button class="act" id="act-walk">Прогулка</button>
       <button class="act" id="act-enter">Войти внутрь</button>
+      <button class="act fav-btn" id="act-fav">♡ В избранное</button>
       <button class="act" id="act-say" aria-label="Озвучить">🔊</button>
     </div>
     <div id="card-pass"></div>
