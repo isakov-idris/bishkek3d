@@ -85,6 +85,13 @@ function buildRoom(W, D, H) {
   const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.17, 0.4, 16), M(0xe2e0db)); pot.position.set(W / 2 - 0.5, 0.2, D / 2 - 0.7); furn.add(pot);
   const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 0), green); leaves.position.set(W / 2 - 0.5, 0.9, D / 2 - 0.7); furn.add(leaves); solids.push([W / 2 - 0.8, D / 2 - 1, W / 2, D / 2 - 0.4]);
   boxAt(furn, 0.05, 0.7, 1.3, W / 2 - 0.1, 1.0, 0.2, dark);
+  // картина на задней стене (красное солнце — мотив флага)
+  boxAt(furn, 1.7, 1.1, 0.04, 0.3, 1.2, -D / 2 + 0.08, M(0x1f1f22));
+  boxAt(furn, 1.6, 1.0, 0.02, 0.3, 1.25, -D / 2 + 0.11, M(0xd8452e));
+  const sunD = new THREE.Mesh(new THREE.CircleGeometry(0.28, 32), M(0xf2c230)); sunD.position.set(0.3, 1.75, -D / 2 + 0.125); furn.add(sunD);
+  // торшер у дивана
+  boxAt(furn, 0.03, 1.5, 0.03, sx + 0.2, 0, -2.1, dark);
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.3, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0xfff1d8, emissive: 0xffd9a0, emissiveIntensity: 0.6, side: THREE.DoubleSide })); shade.position.set(sx + 0.2, 1.6, -2.1); furn.add(shade);
   // свет в комнате
   const l1 = new THREE.PointLight(0xffe6c4, 6, 9, 1.6); l1.position.set(0, H - 0.3, -0.5); g.add(l1);
   const l2 = new THREE.PointLight(0xffe6c4, 3, 6, 1.6); l2.position.set(tx, 1.9, tz); g.add(l2);
@@ -146,7 +153,8 @@ export class Walker {
     // точки для «влёта»: снаружи напротив окна → внутрь комнаты
     const outside = new THREE.Vector3(mx + nx * 28, fy + 1.6 + 6, mz + nz * 28);
     const atWindow = new THREE.Vector3(mx + nx * 1.2, fy + 1.6, mz + nz * 1.2);
-    const inside = new THREE.Vector3(cx - nx * 0.4, fy + EYE, cz - nz * 0.4);
+    // входим у окна и смотрим вглубь комнаты — видна вся квартира
+    const inside = new THREE.Vector3(cx + nx * (D / 2 - 1.1), fy + EYE, cz + nz * (D / 2 - 1.1));
     return { outside, atWindow, inside, lookIn: Math.atan2(-nx, -nz) + Math.PI, floor: fl, levels };
   }
   startInterior(insidePos, yaw) { this.mode = 'interior'; this.pos.copy(insidePos); this.yaw = yaw; this.pitch = -0.05; this.active = true; }

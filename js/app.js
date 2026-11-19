@@ -234,6 +234,8 @@ function walkUI(on, title = '', sub = '', interior = false) {
   document.body.classList.toggle('interior', interior);
   $('#walk-title').textContent = title; $('#walk-sub').textContent = sub;
   controls.enabled = !on;
+  // угол обзора как у человека: шире на вертикальном экране телефона
+  camera.fov = on ? (innerWidth < innerHeight ? 80 : 65) : 45; camera.updateProjectionMatrix();
 }
 function startWalk(p) {
   const n = router.nearest(p.x, p.z, 'walk'); const x = n >= 0 ? router.X[n] : p.x, z = n >= 0 ? router.Z[n] : p.z;
